@@ -3,18 +3,124 @@
 
 ## Loading and preprocessing the data
 
-
+```{r}
+unzip("activity.zip")
+activity <- read.csv("activity.csv", colClasses = c("integer", "character", "character"))
+activity$time <- factor(activity$interval, levels=activity$interval[1:288])
+activity$day <- strptime(activity$date, "%Y-%m-%d")
+```
 
 ## What is mean total number of steps taken per day?
 
+Let's take a look at the daily number of steps.
 
+```{r fig.height=4}
+stepsByDate <- by(activity$steps, activity$date, sum)
+hist(stepsByDate, breaks=20,
+     xlab="Number of daily steps",
+     main="Histogram of number of daily steps")
+```
+
+Compute mean and median:
+
+```{r}
+meanDailySteps <- mean(stepsByDate, na.rm=T); meanDailySteps
+medianDailySteps <- median(stepsByDate, na.rm=T); medianDailySteps
+```
 
 ## What is the average daily activity pattern?
 
+```{r fig.height=4, fig.width=10}
+stepsByInterval <- by(activity$steps, activity$time, mean, na.rm=T)
+plot(stepsByInterval, type="l", xlab="Interval", ylab="Average # of steps", xaxt="n")
+ticks <- seq(from=1,by=24,to=288)
+axis(1,at=activity$time[ticks],labels=activity$time[ticks])
+```
 
+Which interval has the most steps on average:
+
+```{r}
+maxStepInterval <- activity$interval[which.max(stepsByInterval)]
+maxStepInterval
+```
 
 ## Imputing missing values
 
+Number of missing values:
+
+```{r}
+missingValues <- is.na(activity$steps)
+sum(missingValues)
+```
+
+There are `r sum(missingValues)` missing values.
+
+`activityFilled` has missing values replaced with the average number of steps for that interval (so if a step is missing in a row and its interval is 835, then it will be filled with the average for that interval).
+
+```{r}
+missingSteps <- stepsByInterval[activity[missingValues,"time"]]
+stepsFilled <- activity$steps
+stepsFilled[missingValues] <- round(stepsByInterval[activity[missingValues,"time"]])
+activityFilled <- cbind(activity, stepsFilled)
+```
+
+Updated Histogram:
+
+```{r fig.height=4}
+stepsByDateFilled <- by(activityFilled$stepsFilled, activity$date, sum)
+hist(stepsByDateFilled, breaks=20,
+     xlab="Number of daily steps",
+     main="Histogram of number of daily steps with missing values filled")
+```
+
+Compute mean and median:
+
+```{r}
+meanDailyStepsFilled <- mean(stepsByDateFilled, na.rm=T)
+meanDailyStepsFilled
+medianDailyStepsFilled <- median(stepsByDateFilled, na.rm=T)
+medianDailyStepsFilled
+```
+
+The mean is unchanged but the median is slightly less (`r medianDailyStepsFilled` is less that `r medianDailySteps`).
+
+```{r}
+totalDailySteps <- sum(stepsByDate, na.rm=T)
+totalDailyStepsFilled <- sum(stepsByDateFilled, na.rm=T)
+```
+
+With imputed missing values, the total number of steps is `r totalDailyStepsFilled` compared to `r totalDailySteps` previously.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Create a new factor variable for the type of day (weekday or weekend):
+
+```{r}
+activity$dayType <- factor(
+  ifelse(weekdays(activity$day) %in% c("Saturday", "Sunday"),
+         "weekend", "weekday")
+  )
+```
+
+Plot number of steps by day type:
+
+```{r fig.height=8, fig.width=10}
+weekdayActivity <- subset(activity, activity$dayType == "weekday")
+weekdayByInterval <- by(
+  weekdayActivity$steps, weekdayActivity$time,
+  mean, na.rm=T)
+
+weekendActivity <- subset(activity, activity$dayType == "weekend")
+weekendByInterval <- by(
+  weekendActivity$steps, weekendActivity$time,
+  mean, na.rm=T)
+
+ticks <- seq(from=1,by=24,to=288)
+par(mfrow=c(2,1))
+par(mar=c(1,3,1,1))
+plot(weekdayByInterval, type="l", xlab="", ylab="", xaxt="n", main="weekday")
+par(mar=c(2,3,1,1))
+plot(weekendByInterval, type="l", xlab="", ylab="", xaxt="n", main="weekend")
+axis(1,at=activity$time[ticks],labels=activity$time[ticks])
+```
